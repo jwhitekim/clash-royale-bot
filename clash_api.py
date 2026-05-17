@@ -68,6 +68,31 @@ async def get_battlelog(tag: str) -> list[dict]:
     return duels
 
 
+def is_ascii(text: str) -> bool:
+    return all(ord(c) < 128 for c in text)
+
+
+async def find_player_in_clan(nickname: str, clan_name: str) -> dict:
+    """클랜 이름으로 클랜 검색 후 닉네임 일치 멤버 반환. 없으면 None."""
+    url = f"{BASE_URL}/clans"
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(url, headers=_headers(), params={"name": clan_name, "limit": 5})
+        resp.raise_for_status()
+        clans = resp.json().get("items", [])
+
+        nickname_lower = nickname.lower()
+        for clan in clans:
+            members_url = f"{BASE_URL}/clans/{_encode_tag(clan['tag'])}/members"
+            resp = await client.get(members_url, headers=_headers())
+            if resp.status_code != 200:
+                continue
+            for member in resp.json().get("items", []):
+                if member.get("name", "").lower() == nickname_lower:
+                    return {"name": member["name"], "tag": member["tag"]}
+
+    return None
+
+
 async def get_player_full(tag: str) -> dict:
     """get_player + get_battlelog 병렬 호출."""
     player, battlelog = await asyncio.gather(
