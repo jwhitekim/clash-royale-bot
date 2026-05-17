@@ -74,7 +74,7 @@ async def search_clans(clan_name: str) -> list[dict]:
         resp = await client.get(
             f"{BASE_URL}/clans",
             headers=_headers(),
-            params={"name": clan_name, "limit": 5},
+            params={"name": clan_name, "limit": 10},
         )
         resp.raise_for_status()
         return [
