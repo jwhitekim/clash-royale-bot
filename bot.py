@@ -13,7 +13,7 @@ from telegram.ext import (
     filters,
 )
 
-from clash_api import find_player_in_clan, get_player_full, is_ascii
+from clash_api import get_clan_members, get_player_full
 from image_builder import build_deck_image
 from scraper import search_player
 from storage import load_my_decks, save_my_decks
@@ -38,9 +38,10 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text = (
         "⚔️ 클래시로얄 클랜전 듀얼 봇\n\n"
         "📌 사용법\n"
-        "/search 닉네임 — 플레이어 검색 (최대 5명)\n"
-        "/search 닉네임 클랜이름 — 클랜으로 좁혀서 검색\n"
-        "예: /search Simply COWNAX\n\n"
+        "닉네임 입력 — 플레이어 검색\n"
+        "닉네임 클랜이름 — 클랜으로 좁혀서 검색\n"
+        "clan 클랜이름 — 클랜 멤버 목록 (비영어 닉네임 상대 검색)\n"
+        "예: clan AlphaGo\n\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "기타 명령어\n"
         "/setdecks — 내 듀얼 덱 등록\n"
@@ -101,51 +102,46 @@ async def cmd_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await _send_player_result(update, player_data)
         return
 
-    # 검색어 추출
+    # clan 접두어: 클랜 멤버 목록 조회
+    if text.lower().startswith("clan "):
+        clan_name = text[5:].strip()
+        if not clan_name:
+            await update.message.reply_text("사용법: clan 클랜이름\n예: clan AlphaGo")
+            return
+        await update.message.reply_text(f"🔍 '{clan_name}' 클랜 멤버 조회 중...")
+        try:
+            members = await get_clan_members(clan_name)
+        except Exception as e:
+            logger.error("클랜 멤버 조회 실패: %s", e)
+            await update.message.reply_text("❌ 클랜 조회에 실패했습니다.")
+            return
+        if not members:
+            await update.message.reply_text("클랜을 찾을 수 없습니다.")
+            return
+        context.user_data["search_results"] = members
+        lines = [f"[{clan_name}] 멤버 목록 (번호 입력):\n"]
+        for i, m in enumerate(members, 1):
+            lines.append(f"{i}. {m['name']}  {m['tag']}")
+        await update.message.reply_text("\n".join(lines))
+        return
+
+    # 플레이어 검색
     if context.args:
         nickname = context.args[0]
-        clan_name = " ".join(context.args[1:])
+        clan_filter = " ".join(context.args[1:])
     else:
         parts = text.split()
         if not parts:
             return
         nickname = parts[0]
-        clan_name = " ".join(parts[1:])
+        clan_filter = " ".join(parts[1:])
 
-    # 비영어 닉네임: 클랜 멤버 직접 조회
-    if not is_ascii(nickname):
-        if not clan_name:
-            await update.message.reply_text(
-                "한글/비영어 닉네임은 클랜이름을 함께 입력해주세요.\n예: 홍길동 AlphaGo"
-            )
-            return
-        await update.message.reply_text(f"🔍 클랜 '{clan_name}'에서 '{nickname}' 검색 중...")
-        try:
-            member = await find_player_in_clan(nickname, clan_name)
-        except Exception as e:
-            logger.error("클랜 검색 실패: %s", e)
-            await update.message.reply_text("❌ 클랜 검색에 실패했습니다.")
-            return
-        if not member:
-            await update.message.reply_text("해당 클랜에서 플레이어를 찾을 수 없습니다.")
-            return
-        await update.message.reply_text(f"⏳ {member['name']} 덱 조회 중...")
-        try:
-            player_data = await get_player_full(member["tag"])
-        except Exception as e:
-            logger.error("API 호출 실패 (%s): %s", member["tag"], e)
-            await update.message.reply_text("❌ 플레이어를 찾을 수 없습니다.")
-            return
-        await _send_player_result(update, player_data)
-        return
-
-    # 영어 닉네임: RoyaleAPI 스크래핑
-    query_desc = f"'{nickname}'" + (f" (클랜: {clan_name})" if clan_name else "")
+    query_desc = f"'{nickname}'" + (f" (클랜: {clan_filter})" if clan_filter else "")
     await update.message.reply_text(f"🔍 {query_desc} 검색 중...")
 
-    players = await search_player(nickname, clan_name)
+    players = await search_player(nickname, clan_filter)
     if not players:
-        msg = "검색 결과가 없습니다. 클랜이름을 확인해주세요." if clan_name else "검색 결과가 없습니다."
+        msg = "검색 결과가 없습니다. 클랜이름을 확인해주세요." if clan_filter else "검색 결과가 없습니다."
         await update.message.reply_text(msg)
         return
 
