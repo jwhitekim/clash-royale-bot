@@ -1,0 +1,82 @@
+import asyncio
+import io
+
+import httpx
+from PIL import Image, ImageDraw, ImageFont
+
+CARD_W = 120
+CARD_H = 120
+TEXT_H = 22
+CELL_H = CARD_H + TEXT_H
+COLS = 4
+ROWS = 2
+BG_COLOR = (25, 25, 35)
+TEXT_COLOR = (220, 220, 220)
+
+_FONT_CANDIDATES = [
+    "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+]
+
+
+def _get_font(size: int = 10):
+    for path in _FONT_CANDIDATES:
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception:
+            pass
+    return ImageFont.load_default()
+
+
+async def _fetch_image(url: str, client: httpx.AsyncClient):
+    if not url:
+        return None
+    try:
+        resp = await client.get(url, timeout=10)
+        resp.raise_for_status()
+        img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
+        img.thumbnail((CARD_W, CARD_H), Image.LANCZOS)
+        canvas = Image.new("RGBA", (CARD_W, CARD_H), (0, 0, 0, 0))
+        offset_x = (CARD_W - img.width) // 2
+        offset_y = (CARD_H - img.height) // 2
+        canvas.paste(img, (offset_x, offset_y))
+        return canvas
+    except Exception:
+        return None
+
+
+async def build_deck_image(cards: list[dict]) -> bytes:
+    """
+    cards: [{"name": str, "iconUrl": str}, ...]
+    2행 4열 카드 그리드 PNG를 bytes로 반환.
+    """
+    cards = cards[:8]
+    async with httpx.AsyncClient() as client:
+        images = await asyncio.gather(
+            *[_fetch_image(c.get("iconUrl", ""), client) for c in cards]
+        )
+
+    grid = Image.new("RGBA", (COLS * CARD_W, ROWS * CELL_H), (*BG_COLOR, 255))
+    draw = ImageDraw.Draw(grid)
+    font = _get_font(10)
+    placeholder = Image.new("RGBA", (CARD_W, CARD_H), (60, 60, 70, 255))
+
+    for i, (card, img) in enumerate(zip(cards, images)):
+        col = i % COLS
+        row = i // COLS
+        x, y = col * CARD_W, row * CELL_H
+        grid.paste(img if img else placeholder, (x, y))
+        draw.text(
+            (x + CARD_W // 2, y + CARD_H + 2),
+            card.get("name", ""),
+            font=font,
+            fill=TEXT_COLOR,
+            anchor="mt",
+        )
+
+    buf = io.BytesIO()
+    grid.convert("RGB").save(buf, format="PNG")
+    buf.seek(0)
+    return buf.read()

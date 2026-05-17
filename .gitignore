@@ -1,0 +1,5 @@
+.env
+data/my_decks.json
+__pycache__/
+*.pyc
+.DS_Store
