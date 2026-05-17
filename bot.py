@@ -1,6 +1,8 @@
+import asyncio
 import logging
 import os
 
+import httpx
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
@@ -49,65 +51,11 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(text)
 
 
-async def cmd_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not context.args:
-        await update.message.reply_text("사용법: /search 닉네임 [클랜이름]\n예: /search Simply COWNAX")
-        return
-
-    nickname = context.args[0]
-    clan_name = " ".join(context.args[1:]) if len(context.args) > 1 else ""
-
-    query_desc = f"'{nickname}'" + (f" (클랜: {clan_name})" if clan_name else "")
-    await update.message.reply_text(f"🔍 {query_desc} 검색 중...")
-
-    players = await search_player(nickname, clan_name)
-    if not players:
-        msg = "검색 결과가 없습니다. 클랜이름을 확인해주세요." if clan_name else "검색 결과가 없습니다."
-        await update.message.reply_text(msg)
-        return
-
-    context.user_data["search_results"] = players
-
-    lines = ["플레이어를 선택하세요 (번호 입력):\n"]
-    for i, p in enumerate(players, 1):
-        clan_info = f"  [{p['clan']}]" if p.get("clan") else ""
-        lines.append(f"{i}. {p['name']}  {p['tag']}{clan_info}")
-    await update.message.reply_text("\n".join(lines))
-
-
-async def handle_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    players = context.user_data.get("search_results")
-    if not players:
-        return
-
-    text = update.message.text.strip()
-    if not text.isdigit():
-        return
-
-    idx = int(text) - 1
-    if idx < 0 or idx >= len(players):
-        await update.message.reply_text(f"1~{len(players)} 사이 번호를 입력해주세요.")
-        return
-
-    selected = players[idx]
-    context.user_data.pop("search_results")
-
-    await update.message.reply_text(f"⏳ {selected['name']} 덱 조회 중...")
-
-    try:
-        player_data = await get_player_full(selected["tag"])
-    except Exception as e:
-        logger.error("API 호출 실패 (%s): %s", selected["tag"], e)
-        await update.message.reply_text("❌ 플레이어를 찾을 수 없습니다.")
-        return
-
-    # 기본 정보
+async def _send_player_result(update: Update, player_data: dict) -> None:
     await update.message.reply_text(
         f"👤 {player_data['name']} | 🏆 {player_data['trophies']} | Lv.{player_data['level']}\n"
         f"🏰 클랜: {player_data['clan']}"
     )
-
-    # 덱 이미지
     duels = player_data.get("duels", [])
     if not duels:
         await update.message.reply_text("최근 클랜전 기록이 없습니다.")
@@ -122,8 +70,6 @@ async def handle_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 logger.error("이미지 생성 실패: %s", e)
                 names = " · ".join(c["name"] for c in duel["cards"])
                 await update.message.reply_text(f"{caption}\n{names}")
-
-    # 내 덱
     my_decks_data = load_my_decks()
     my_decks = my_decks_data.get("decks", [])
     if my_decks:
@@ -133,6 +79,56 @@ async def handle_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             lines.append(_fmt_deck(deck.get("cards", [])))
             lines.append("")
         await update.message.reply_text("\n".join(lines).strip())
+
+
+async def cmd_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    text = update.message.text.strip()
+
+    # 번호 선택 처리
+    pending = context.user_data.get("search_results")
+    if pending and not context.args and text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(pending):
+            await update.message.reply_text(f"1~{len(pending)} 사이 번호를 입력해주세요.")
+            return
+        selected = pending[idx]
+        context.user_data.pop("search_results")
+        await update.message.reply_text(f"⏳ {selected['name']} 덱 조회 중...")
+        try:
+            player_data = await get_player_full(selected["tag"])
+        except Exception as e:
+            logger.error("API 호출 실패 (%s): %s", selected["tag"], e)
+            await update.message.reply_text("❌ 플레이어를 찾을 수 없습니다.")
+            return
+        await _send_player_result(update, player_data)
+        return
+
+    # 검색어 추출
+    if context.args:
+        nickname = context.args[0]
+        clan_name = " ".join(context.args[1:])
+    else:
+        parts = text.split()
+        if not parts:
+            return
+        nickname = parts[0]
+        clan_name = " ".join(parts[1:])
+
+    query_desc = f"'{nickname}'" + (f" (클랜: {clan_name})" if clan_name else "")
+    await update.message.reply_text(f"🔍 {query_desc} 검색 중...")
+
+    players = await search_player(nickname, clan_name)
+    if not players:
+        msg = "검색 결과가 없습니다. 클랜이름을 확인해주세요." if clan_name else "검색 결과가 없습니다."
+        await update.message.reply_text(msg)
+        return
+
+    context.user_data["search_results"] = players
+    lines = ["플레이어를 선택하세요 (번호 입력):\n"]
+    for i, p in enumerate(players, 1):
+        clan_info = f"  [{p['clan']}]" if p.get("clan") else ""
+        lines.append(f"{i}. {p['name']}  {p['tag']}{clan_info}")
+    await update.message.reply_text("\n".join(lines))
 
 
 async def cmd_register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -199,7 +195,17 @@ async def cmd_setdecks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 # ── 진입점 ────────────────────────────────────────────────────────────────────
 
+async def _print_server_ip() -> None:
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.get("https://ifconfig.me")
+            print(f"서버 IP: {r.text.strip()}")
+    except Exception:
+        pass
+
+
 def main() -> None:
+    asyncio.get_event_loop().run_until_complete(_print_server_ip())
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", cmd_start))
@@ -207,7 +213,7 @@ def main() -> None:
     app.add_handler(CommandHandler("register", cmd_register))
     app.add_handler(CommandHandler("mydecks", cmd_mydecks))
     app.add_handler(CommandHandler("setdecks", cmd_setdecks))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_selection))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_search))
 
     if MODE == "webhook":
         app.run_webhook(
