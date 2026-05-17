@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BASE_URL = "https://api.clashroyale.com/v1"
+BASE_URL = "https://proxy.royaleapi.dev/v1"
 CLAN_WAR_TYPES = {"riverRaceDuel", "riverRacePvP"}
 
 
