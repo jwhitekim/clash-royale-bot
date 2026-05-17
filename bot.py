@@ -23,8 +23,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-MODE = os.getenv("MODE", "polling")
-RAILWAY_DOMAIN = os.getenv("RAILWAY_DOMAIN", "")
 
 
 TYPE_LABEL = {"riverRaceDuel": "듀얼", "riverRacePvP": "1v1"}
@@ -215,14 +213,7 @@ def main() -> None:
     app.add_handler(CommandHandler("setdecks", cmd_setdecks))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_search))
 
-    if MODE == "webhook":
-        app.run_webhook(
-            listen="0.0.0.0",
-            port=int(os.environ.get("PORT", 8080)),
-            webhook_url=f"https://{RAILWAY_DOMAIN}/{TOKEN}",
-        )
-    else:
-        app.run_polling()
+    app.run_polling()
 
 
 if __name__ == "__main__":
