@@ -13,7 +13,7 @@ from telegram.ext import (
     filters,
 )
 
-from clash_api import get_clan_members, get_player_full
+from clash_api import get_clan_members, get_player_full, search_clans
 from image_builder import build_deck_image
 from scraper import search_player
 from storage import load_my_decks, save_my_decks
@@ -83,7 +83,33 @@ async def _send_player_result(update: Update, player_data: dict) -> None:
 async def cmd_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text = update.message.text.strip()
 
-    # 번호 선택 처리
+    # 클랜 선택 처리
+    clan_pending = context.user_data.get("clan_results")
+    if clan_pending and not context.args and text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(clan_pending):
+            await update.message.reply_text(f"1~{len(clan_pending)} 사이 번호를 입력해주세요.")
+            return
+        selected_clan = clan_pending[idx]
+        context.user_data.pop("clan_results")
+        await update.message.reply_text(f"⏳ [{selected_clan['name']}] 멤버 조회 중...")
+        try:
+            members = await get_clan_members(selected_clan["tag"])
+        except Exception as e:
+            logger.error("클랜 멤버 조회 실패 (%s): %s", selected_clan["tag"], e)
+            await update.message.reply_text("❌ 클랜 멤버를 가져오는 데 실패했습니다.")
+            return
+        if not members:
+            await update.message.reply_text("멤버가 없습니다.")
+            return
+        context.user_data["search_results"] = members
+        lines = [f"[{selected_clan['name']}] 멤버 목록 (번호 입력):\n"]
+        for i, m in enumerate(members, 1):
+            lines.append(f"{i}. {m['name']}  {m['tag']}")
+        await update.message.reply_text("\n".join(lines))
+        return
+
+    # 플레이어 선택 처리
     pending = context.user_data.get("search_results")
     if pending and not context.args and text.isdigit():
         idx = int(text) - 1
@@ -102,26 +128,26 @@ async def cmd_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await _send_player_result(update, player_data)
         return
 
-    # clan 접두어: 클랜 멤버 목록 조회
+    # clan 접두어: 클랜 검색
     if text.lower().startswith("clan "):
         clan_name = text[5:].strip()
         if not clan_name:
             await update.message.reply_text("사용법: clan 클랜이름\n예: clan AlphaGo")
             return
-        await update.message.reply_text(f"🔍 '{clan_name}' 클랜 멤버 조회 중...")
+        await update.message.reply_text(f"🔍 '{clan_name}' 클랜 검색 중...")
         try:
-            members = await get_clan_members(clan_name)
+            clans = await search_clans(clan_name)
         except Exception as e:
-            logger.error("클랜 멤버 조회 실패: %s", e)
+            logger.error("클랜 검색 실패: %s", e)
             await update.message.reply_text("❌ 클랜 조회에 실패했습니다.")
             return
-        if not members:
+        if not clans:
             await update.message.reply_text("클랜을 찾을 수 없습니다.")
             return
-        context.user_data["search_results"] = members
-        lines = [f"[{clan_name}] 멤버 목록 (번호 입력):\n"]
-        for i, m in enumerate(members, 1):
-            lines.append(f"{i}. {m['name']}  {m['tag']}")
+        context.user_data["clan_results"] = clans
+        lines = ["클랜을 선택하세요 (번호 입력):\n"]
+        for i, c in enumerate(clans, 1):
+            lines.append(f"{i}. {c['name']}  {c['tag']}  ({c['members']}명)")
         await update.message.reply_text("\n".join(lines))
         return
 

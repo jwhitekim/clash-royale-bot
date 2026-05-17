@@ -68,19 +68,24 @@ async def get_battlelog(tag: str) -> list[dict]:
     return duels
 
 
-async def get_clan_members(clan_name: str) -> list[dict]:
-    """클랜 이름으로 검색 후 전체 멤버 목록 반환."""
+async def search_clans(clan_name: str) -> list[dict]:
+    """클랜 이름으로 검색, 최대 5개 반환."""
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(
             f"{BASE_URL}/clans",
             headers=_headers(),
-            params={"name": clan_name, "limit": 1},
+            params={"name": clan_name, "limit": 5},
         )
         resp.raise_for_status()
-        clans = resp.json().get("items", [])
-        if not clans:
-            return []
-        clan_tag = clans[0]["tag"]
+        return [
+            {"name": c["name"], "tag": c["tag"], "members": c.get("members", 0)}
+            for c in resp.json().get("items", [])
+        ]
+
+
+async def get_clan_members(clan_tag: str) -> list[dict]:
+    """클랜 태그로 멤버 목록 반환."""
+    async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(
             f"{BASE_URL}/clans/{_encode_tag(clan_tag)}/members",
             headers=_headers(),
