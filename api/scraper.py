@@ -1,5 +1,9 @@
+import logging
+
 from curl_cffi.requests import AsyncSession
 from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 
 SEARCH_URL = "https://royaleapi.com/player/search/results"
 
@@ -11,13 +15,17 @@ async def search_player(name: str, clan_name: str = "") -> list[dict]:
         async with AsyncSession(impersonate="chrome124") as session:
             resp = await session.get(SEARCH_URL, params=params, timeout=10)
             resp.raise_for_status()
-    except Exception:
+    except Exception as e:
+        logger.error("scraper 요청 실패: %s", e)
         return []
 
     soup = BeautifulSoup(resp.text, "html.parser")
+    items = soup.select(".player_search_results__result_container")
+    logger.debug("scraper HTML 파싱: %d개 항목 발견 (HTTP %s)", len(items), resp.status_code)
+
     players = []
 
-    for item in soup.select(".player_search_results__result_container"):
+    for item in items:
         name_el = item.select_one(".header")
         tag_el = item.select_one(".player_tag")
 
