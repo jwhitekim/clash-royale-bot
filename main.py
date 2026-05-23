@@ -30,8 +30,16 @@ async def _print_server_ip() -> None:
 
 
 def main() -> None:
-    asyncio.get_event_loop().run_until_complete(_print_server_ip())
-    app = Application.builder().token(TOKEN).build()
+    asyncio.run(_print_server_ip())
+    app = (
+        Application.builder()
+        .token(TOKEN)
+        .read_timeout(30)
+        .write_timeout(30)
+        .connect_timeout(30)
+        .pool_timeout(30)
+        .build()
+    )
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("search", cmd_search))
