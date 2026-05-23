@@ -51,18 +51,35 @@ async def get_player(tag: str) -> dict:
 
 _RARITY_OFFSET = {"Common": 0, "Rare": 2, "Epic": 4, "Legendary": 5, "Champion": 5}
 
+# cards.json 업데이트 지연 대비 하드코딩 보완 목록
+_CHAMPION_NAMES = {
+    "Archer Queen",
+    "Golden Knight",
+    "Skeleton King",
+    "Mighty Miner",
+    "Monk",
+    "Little Prince",
+    "Dagger Duchess",
+    "Mega Minion",
+}
+
 
 def _parse_card(raw: dict, meta: dict) -> dict:
     card_info = meta.get(raw.get("id"), {})
     rarity = card_info.get("rarity", "Common")
+    name = raw.get("name", "")
     raw_level = raw.get("level", 1)
     display_level = min(raw_level + _RARITY_OFFSET.get(rarity, 0), 15)
+
+    is_champion = name in _CHAMPION_NAMES or rarity == "Champion"
+    evolved = (not is_champion) and raw.get("evolutionLevel", 0) > 0
+
     return {
-        "name": raw.get("name", ""),
+        "name": name,
         "iconUrl": raw.get("iconUrls", {}).get("medium", ""),
         "level": display_level,
-        "evolved": raw.get("evolutionLevel", 0) > 0,
-        "is_champion": rarity == "Champion",
+        "evolved": evolved,
+        "is_champion": is_champion,
     }
 
 
