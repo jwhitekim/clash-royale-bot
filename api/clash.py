@@ -34,7 +34,6 @@ def _encode_tag(tag: str) -> str:
 
 
 async def get_player(tag: str) -> dict:
-    """기본 정보 조회. 닉네임, 트로피, 레벨, 클랜명 반환."""
     url = f"{BASE_URL}/players/{_encode_tag(tag)}"
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(url, headers=_headers())
@@ -68,7 +67,6 @@ def _parse_card(raw: dict, meta: dict) -> dict:
 
 
 async def get_battlelog(tag: str) -> list[dict]:
-    """배틀로그에서 최근 듀얼 3경기 반환. 각 경기의 덱(카드 8장) 포함."""
     url = f"{BASE_URL}/players/{_encode_tag(tag)}/battlelog"
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(url, headers=_headers())
@@ -96,7 +94,6 @@ async def get_battlelog(tag: str) -> list[dict]:
 
 
 async def search_clans(clan_name: str) -> list[dict]:
-    """클랜 이름으로 검색, 최대 5개 반환."""
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(
             f"{BASE_URL}/clans",
@@ -111,7 +108,6 @@ async def search_clans(clan_name: str) -> list[dict]:
 
 
 async def get_clan_members(clan_tag: str) -> list[dict]:
-    """클랜 태그로 멤버 목록 반환."""
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(
             f"{BASE_URL}/clans/{_encode_tag(clan_tag)}/members",
@@ -125,7 +121,6 @@ async def get_clan_members(clan_tag: str) -> list[dict]:
 
 
 async def get_player_full(tag: str) -> dict:
-    """get_player + get_battlelog 병렬 호출."""
     player, battlelog = await asyncio.gather(
         get_player(tag),
         get_battlelog(tag),

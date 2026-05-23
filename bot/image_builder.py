@@ -49,7 +49,7 @@ async def _fetch_image(url: str, client: httpx.AsyncClient):
 
 async def build_deck_image(cards: list[dict]) -> bytes:
     """
-    cards: [{"name": str, "iconUrl": str}, ...]
+    cards: [{"name": str, "iconUrl": str, "level": int, "evolved": bool, "is_champion": bool}, ...]
     2행 4열 카드 그리드 PNG를 bytes로 반환.
     """
     cards = cards[:8]
@@ -61,9 +61,8 @@ async def build_deck_image(cards: list[dict]) -> bytes:
     grid = Image.new("RGBA", (COLS * CARD_W, ROWS * CELL_H), (*BG_COLOR, 255))
     draw = ImageDraw.Draw(grid)
     font = _get_font(10)
-    placeholder = Image.new("RGBA", (CARD_W, CARD_H), (60, 60, 70, 255))
-
     badge_font = _get_font(9)
+    placeholder = Image.new("RGBA", (CARD_W, CARD_H), (60, 60, 70, 255))
 
     for i, (card, img) in enumerate(zip(cards, images)):
         col = i % COLS
@@ -80,9 +79,8 @@ async def build_deck_image(cards: list[dict]) -> bytes:
 
         level = card.get("level")
         if level is not None:
-            lv_text = str(level)
             lv_color = (255, 215, 0) if level == 15 else (200, 200, 200)
-            draw.text((x + CARD_W - 3, y + CARD_H - 3), lv_text, font=badge_font, fill=lv_color, anchor="rb")
+            draw.text((x + CARD_W - 3, y + CARD_H - 3), str(level), font=badge_font, fill=lv_color, anchor="rb")
 
         draw.text(
             (x + CARD_W // 2, y + CARD_H + 2),

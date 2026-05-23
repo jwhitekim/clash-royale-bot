@@ -1,29 +1,14 @@
-import asyncio
 import logging
-import os
 
-import httpx
-from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    ContextTypes,
-    MessageHandler,
-    filters,
-)
+from telegram.ext import ContextTypes
 
-from clash_api import get_clan_members, get_player_full, search_clans
-from image_builder import build_deck_image
-from scraper import search_player
+from api.clash import get_clan_members, get_player_full, search_clans
+from api.scraper import search_player
+from bot.image_builder import build_deck_image
 from storage import load_my_decks, save_my_decks
 
-load_dotenv()
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-
 
 TYPE_LABEL = {"riverRaceDuel": "듀얼", "riverRacePvP": "1v1"}
 
@@ -31,8 +16,6 @@ TYPE_LABEL = {"riverRaceDuel": "듀얼", "riverRacePvP": "1v1"}
 def _fmt_deck(cards: list[str]) -> str:
     return " · ".join(cards[:8]) if cards else "(카드 정보 없음)"
 
-
-# ── 커맨드 핸들러 ──────────────────────────────────────────────────────────────
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text = (
@@ -239,32 +222,3 @@ async def cmd_setdecks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     tag = data.get("player_tag", "")
     save_my_decks(tag, decks)
     await update.message.reply_text("✅ 덱 3개 저장 완료!")
-
-
-# ── 진입점 ────────────────────────────────────────────────────────────────────
-
-async def _print_server_ip() -> None:
-    try:
-        async with httpx.AsyncClient(timeout=5) as client:
-            r = await client.get("https://ifconfig.me")
-            print(f"서버 IP: {r.text.strip()}")
-    except Exception:
-        pass
-
-
-def main() -> None:
-    asyncio.get_event_loop().run_until_complete(_print_server_ip())
-    app = Application.builder().token(TOKEN).build()
-
-    app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CommandHandler("search", cmd_search))
-    app.add_handler(CommandHandler("register", cmd_register))
-    app.add_handler(CommandHandler("mydecks", cmd_mydecks))
-    app.add_handler(CommandHandler("setdecks", cmd_setdecks))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_search))
-
-    app.run_polling()
-
-
-if __name__ == "__main__":
-    main()
