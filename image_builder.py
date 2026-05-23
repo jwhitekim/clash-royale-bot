@@ -63,11 +63,27 @@ async def build_deck_image(cards: list[dict]) -> bytes:
     font = _get_font(10)
     placeholder = Image.new("RGBA", (CARD_W, CARD_H), (60, 60, 70, 255))
 
+    badge_font = _get_font(9)
+
     for i, (card, img) in enumerate(zip(cards, images)):
         col = i % COLS
         row = i // COLS
         x, y = col * CARD_W, row * CELL_H
         grid.paste(img if img else placeholder, (x, y))
+
+        if card.get("evolved"):
+            draw.rectangle([x, y, x + 26, y + 15], fill=(0, 160, 230))
+            draw.text((x + 3, y + 2), "EVO", font=badge_font, fill=(255, 255, 255))
+        elif card.get("is_champion"):
+            draw.rectangle([x, y, x + 22, y + 15], fill=(200, 150, 0))
+            draw.text((x + 3, y + 2), "CH", font=badge_font, fill=(255, 255, 255))
+
+        level = card.get("level")
+        if level is not None:
+            lv_text = str(level)
+            lv_color = (255, 215, 0) if level == 15 else (200, 200, 200)
+            draw.text((x + CARD_W - 3, y + CARD_H - 3), lv_text, font=badge_font, fill=lv_color, anchor="rb")
+
         draw.text(
             (x + CARD_W // 2, y + CARD_H + 2),
             card.get("name", ""),

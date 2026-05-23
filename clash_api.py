@@ -9,6 +9,21 @@ load_dotenv()
 BASE_URL = "https://proxy.royaleapi.dev/v1"
 CLAN_WAR_TYPES = {"riverRaceDuel", "riverRacePvP"}
 
+_CARD_META: dict = {}  # card id -> cards.json entry
+
+
+async def _load_card_meta() -> dict:
+    global _CARD_META
+    if _CARD_META:
+        return _CARD_META
+    url = "https://royaleapi.github.io/cr-api-data/json/cards.json"
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(url)
+        resp.raise_for_status()
+        data = resp.json()
+    _CARD_META = {c["id"]: c for c in data if "id" in c}
+    return _CARD_META
+
 
 def _headers() -> dict:
     return {"Authorization": f"Bearer {os.getenv('CR_API_KEY', '')}"}
@@ -35,6 +50,23 @@ async def get_player(tag: str) -> dict:
     }
 
 
+_RARITY_OFFSET = {"Common": 0, "Rare": 2, "Epic": 4, "Legendary": 5, "Champion": 5}
+
+
+def _parse_card(raw: dict, meta: dict) -> dict:
+    card_info = meta.get(raw.get("id"), {})
+    rarity = card_info.get("rarity", "Common")
+    raw_level = raw.get("level", 1)
+    display_level = min(raw_level + _RARITY_OFFSET.get(rarity, 0), 15)
+    return {
+        "name": raw.get("name", ""),
+        "iconUrl": raw.get("iconUrls", {}).get("medium", ""),
+        "level": display_level,
+        "evolved": raw.get("evolutionLevel", 0) > 0,
+        "is_champion": rarity == "Champion",
+    }
+
+
 async def get_battlelog(tag: str) -> list[dict]:
     """배틀로그에서 최근 듀얼 3경기 반환. 각 경기의 덱(카드 8장) 포함."""
     url = f"{BASE_URL}/players/{_encode_tag(tag)}/battlelog"
@@ -43,6 +75,7 @@ async def get_battlelog(tag: str) -> list[dict]:
         resp.raise_for_status()
         battles = resp.json()
 
+    meta = await _load_card_meta()
     duels = []
     for battle in battles:
         battle_type = battle.get("type", "")
@@ -53,16 +86,10 @@ async def get_battlelog(tag: str) -> list[dict]:
 
         if battle_type == "riverRaceDuel":
             for round_data in player.get("rounds", []):
-                round_cards = [
-                    {"name": c.get("name", ""), "iconUrl": c.get("iconUrls", {}).get("medium", "")}
-                    for c in round_data.get("cards", [])
-                ]
+                round_cards = [_parse_card(c, meta) for c in round_data.get("cards", [])]
                 duels.append({"type": battle_type, "cards": round_cards[:8]})
         else:
-            cards = [
-                {"name": c.get("name", ""), "iconUrl": c.get("iconUrls", {}).get("medium", "")}
-                for c in player.get("cards", [])
-            ]
+            cards = [_parse_card(c, meta) for c in player.get("cards", [])]
             duels.append({"type": battle_type, "cards": cards[:8]})
 
     return duels
