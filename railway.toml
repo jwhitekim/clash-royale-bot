@@ -2,7 +2,7 @@
 buildCommand = "pip install -r requirements.txt"
 
 [deploy]
-startCommand = "python bot.py"
+startCommand = "python main.py"
 numReplicas = 1
 sleepApplication = false
 restartPolicyType = "always"
