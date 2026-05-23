@@ -21,6 +21,13 @@ _FONT_CANDIDATES = [
 ]
 
 
+def _draw_outlined_text(draw, pos, text, font, fill, anchor="rb"):
+    x, y = pos
+    for dx, dy in [(-1,0),(1,0),(0,-1),(0,1),(-1,-1),(1,-1),(-1,1),(1,1)]:
+        draw.text((x+dx, y+dy), text, font=font, fill=(0, 0, 0), anchor=anchor)
+    draw.text((x, y), text, font=font, fill=fill, anchor=anchor)
+
+
 def _get_font(size: int = 10):
     for path in _FONT_CANDIDATES:
         try:
@@ -79,8 +86,8 @@ async def build_deck_image(cards: list[dict]) -> bytes:
 
         level = card.get("level")
         if level is not None:
-            lv_color = (255, 215, 0) if level == 15 else (200, 200, 200)
-            draw.text((x + CARD_W - 3, y + CARD_H - 3), str(level), font=badge_font, fill=lv_color, anchor="rb")
+            lv_color = (255, 215, 0) if level == 15 else (255, 255, 255)
+            _draw_outlined_text(draw, (x + CARD_W - 3, y + CARD_H - 3), str(level), badge_font, lv_color)
 
         draw.text(
             (x + CARD_W // 2, y + CARD_H + 2),
