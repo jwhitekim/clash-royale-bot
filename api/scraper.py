@@ -12,7 +12,7 @@ async def search_player(name: str, clan_name: str = "") -> list[dict]:
     """닉네임으로 플레이어 검색. clan_name 지정 시 클랜명으로 필터링. 최대 5명 반환."""
     params = {"q": name}
     try:
-        async with AsyncSession(impersonate="chrome124") as session:
+        async with AsyncSession(impersonate="chrome131") as session:
             resp = await session.get(SEARCH_URL, params=params, timeout=10)
             resp.raise_for_status()
     except Exception as e:
