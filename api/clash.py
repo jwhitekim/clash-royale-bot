@@ -73,17 +73,24 @@ def _parse_card(raw: dict, meta: dict) -> dict:
     card_info = meta.get(raw.get("id"), {})
     rarity = card_info.get("rarity", "Common")
     name = raw.get("name", "")
-    display_level = min(raw.get("level", 1) + _RARITY_OFFSET.get(rarity, 0), 15)
+    max_level = raw.get("maxLevel", 15)
+    display_level = min(raw.get("level", 1) + _RARITY_OFFSET.get(rarity, 0), max_level)
 
     is_champion = name in _CHAMPION_NAMES or rarity == "Champion"
-    evolved = (not is_champion) and raw.get("evolutionLevel", 0) > 0
+    evo_level = raw.get("evolutionLevel", 0)
+    is_hero = evo_level >= 2
+    is_evo = evo_level == 1
+
+    icon_urls = raw.get("iconUrls", {})
+    icon_url = icon_urls.get("heroMedium") or icon_urls.get("evolutionMedium") or icon_urls.get("medium", "")
 
     return {
         "name": name,
-        "iconUrl": raw.get("iconUrls", {}).get("medium", ""),
+        "iconUrl": icon_url,
         "level": display_level,
-        "evolved": evolved,
         "is_champion": is_champion,
+        "is_hero": is_hero,
+        "evolved": is_evo,
     }
 
 

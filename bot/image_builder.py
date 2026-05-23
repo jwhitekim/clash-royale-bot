@@ -77,12 +77,15 @@ async def build_deck_image(cards: list[dict]) -> bytes:
         x, y = col * CARD_W, row * CELL_H
         grid.paste(img if img else placeholder, (x, y))
 
-        if card.get("evolved"):
-            draw.rectangle([x, y, x + 26, y + 15], fill=(0, 160, 230))
-            draw.text((x + 3, y + 2), "EVO", font=badge_font, fill=(255, 255, 255))
-        elif card.get("is_champion"):
+        if card.get("is_champion"):
             draw.rectangle([x, y, x + 22, y + 15], fill=(200, 150, 0))
             draw.text((x + 3, y + 2), "CH", font=badge_font, fill=(255, 255, 255))
+        elif card.get("is_hero"):
+            draw.rectangle([x, y, x + 30, y + 15], fill=(160, 0, 200))
+            draw.text((x + 3, y + 2), "HERO", font=badge_font, fill=(255, 255, 255))
+        elif card.get("evolved"):
+            draw.rectangle([x, y, x + 26, y + 15], fill=(0, 160, 230))
+            draw.text((x + 3, y + 2), "EVO", font=badge_font, fill=(255, 255, 255))
 
         level = card.get("level")
         if level is not None:
