@@ -4,7 +4,8 @@ import os
 
 import httpx
 from dotenv import load_dotenv
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.error import Conflict
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 from bot.handlers import (
     cmd_mydecks,
@@ -33,6 +34,16 @@ async def _print_server_ip() -> None:
         pass
 
 
+logger = logging.getLogger(__name__)
+
+
+async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if isinstance(context.error, Conflict):
+        logger.warning("Conflict: 다른 봇 인스턴스가 실행 중입니다. 이전 인스턴스가 종료될 때까지 대기합니다.")
+    else:
+        logger.error("처리되지 않은 에러: %s", context.error, exc_info=context.error)
+
+
 def main() -> None:
     asyncio.run(_print_server_ip())
     app = (
@@ -51,8 +62,9 @@ def main() -> None:
     app.add_handler(CommandHandler("mydecks", cmd_mydecks))
     app.add_handler(CommandHandler("setdecks", cmd_setdecks))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_search))
+    app.add_error_handler(_error_handler)
 
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":
