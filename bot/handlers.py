@@ -6,7 +6,7 @@ from telegram.ext import ContextTypes
 from api.clash import get_clan_members, get_player_full, search_clans
 from api.scraper import search_player
 from bot.image_builder import build_deck_image
-from storage import load_my_decks, save_my_decks
+from bot.storage import load_my_decks, save_my_decks
 
 logger = logging.getLogger(__name__)
 
